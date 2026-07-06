@@ -35,11 +35,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,7 +51,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import ochoa.ivan.sharedpreferences.data.PreferencesManager
+import kotlinx.coroutines.launch
+import ochoa.ivan.sharedpreferences.data.DataStoreManager
 import ochoa.ivan.sharedpreferences.data.Producto
 import ochoa.ivan.sharedpreferences.data.ProductoRepository
 import java.text.NumberFormat
@@ -63,10 +64,10 @@ private val Background = Color(0xFFF6F4FC)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val preferences = PreferencesManager(this)
+        val dataStoreManager = DataStoreManager(this)
         setContent {
             MaterialTheme {
-                StoreApp(preferences)
+                StoreApp(dataStoreManager)
             }
         }
     }
@@ -75,33 +76,27 @@ class MainActivity : ComponentActivity() {
 private enum class Screen { CATALOG, DETAIL, CART }
 
 @Composable
-private fun StoreApp(preferences: PreferencesManager) {
-    var loggedIn by remember { mutableStateOf(preferences.isLoggedIn()) }
+private fun StoreApp(dataStoreManager: DataStoreManager) {
+    val loggedIn by dataStoreManager.isLoggedIn.collectAsState(initial = false)
+    val storedCartIds by dataStoreManager.cartIds.collectAsState(initial = emptyList())
+    val cartIds = storedCartIds.filter { ProductoRepository.obtenerPorId(it) != null }
+    val scope = rememberCoroutineScope()
 
     if (!loggedIn) {
         LoginScreen {
-            preferences.saveLogin()
-            loggedIn = true
+            scope.launch { dataStoreManager.saveLogin() }
         }
         return
     }
 
     var screen by rememberSaveable { mutableStateOf(Screen.CATALOG) }
     var selectedId by rememberSaveable { mutableStateOf<Int?>(null) }
-    val cartIds = remember { mutableStateListOf<Int>() }
-
-    LaunchedEffect(Unit) {
-        cartIds.addAll(preferences.loadCart().filter { ProductoRepository.obtenerPorId(it) != null })
-    }
-
     fun addToCart(product: Producto) {
-        cartIds.add(product.id)
-        preferences.saveCart(cartIds)
+        scope.launch { dataStoreManager.addToCart(product.id) }
     }
 
     fun removeOne(productId: Int) {
-        cartIds.remove(productId)
-        preferences.saveCart(cartIds)
+        scope.launch { dataStoreManager.removeOneFromCart(productId) }
     }
 
     when (screen) {
@@ -110,7 +105,7 @@ private fun StoreApp(preferences: PreferencesManager) {
             onProduct = { selectedId = it.id; screen = Screen.DETAIL },
             onAdd = ::addToCart,
             onCart = { screen = Screen.CART },
-            onLogout = { preferences.logout(); loggedIn = false }
+            onLogout = { scope.launch { dataStoreManager.logout() } }
         )
         Screen.DETAIL -> ProductoRepository.obtenerPorId(selectedId ?: -1)?.let { product ->
             DetailScreen(product, cartIds.size, ::addToCart) { screen = Screen.CATALOG }
@@ -119,7 +114,7 @@ private fun StoreApp(preferences: PreferencesManager) {
             cartIds = cartIds,
             onBack = { screen = Screen.CATALOG },
             onRemove = ::removeOne,
-            onClear = { cartIds.clear(); preferences.clearCart() }
+            onClear = { scope.launch { dataStoreManager.clearCart() } }
         )
     }
 }

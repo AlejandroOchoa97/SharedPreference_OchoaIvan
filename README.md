@@ -1,6 +1,6 @@
 # sharedPreferences_OchoaIvan
 
-Práctica Android desarrollada con Kotlin y Jetpack Compose. Implementa una tienda de videojuegos con sesión y carrito persistentes mediante `SharedPreferences`.
+Práctica Android desarrollada con Kotlin y Jetpack Compose. En la rama `datastore`, la sesión y el carrito se almacenan de forma asíncrona y transaccional con Preferences DataStore.
 
 ## Credenciales
 
@@ -15,7 +15,7 @@ Práctica Android desarrollada con Kotlin y Jetpack Compose. Implementa una tien
 - Consulta de productos por ID.
 - Pantalla de detalle.
 - Carrito con cantidades, total y eliminación de productos.
-- Persistencia del carrito y de la sesión con `SharedPreferences`.
+- Persistencia del carrito y de la sesión con Preferences DataStore.
 - Cierre de sesión sin perder el carrito.
 
 ## Verificación
